@@ -159,12 +159,22 @@ bool operator==(Data const& lhs, Data const& rhs)
 
 using float_json = nlohmann::basic_json<std::map, std::vector, std::string, bool, std::int64_t, std::uint64_t, float>;
 
+/////////////////////////////////////////////////////////////////////
+// for #1805
+/////////////////////////////////////////////////////////////////////
+
+struct NotSerializableData
+{
+    int mydata;
+    float myfloat;
+};
+
 
 TEST_CASE("regression tests")
 {
     SECTION("issue #60 - Double quotation mark is not parsed correctly")
     {
-        SECTION("escape_dobulequote")
+        SECTION("escape_doublequote")
         {
             auto s = "[\"\\\"foo\\\"\"]";
             json j = json::parse(s);
@@ -1739,31 +1749,37 @@ TEST_CASE("regression tests")
     {
         SECTION("a bunch of -1, ensure_ascii=true")
         {
+            const auto length = 300;
+
             json dump_test;
-            std::vector<char> data(300, -1);
-            std::vector<std::string> vec_string(300, "\\ufffd");
-            std::string s{data.data(), data.size()};
-            dump_test["1"] = s;
-            std::ostringstream os;
-            os << "{\"1\":\"";
-            std::copy( vec_string.begin(), vec_string.end(), std::ostream_iterator<std::string>(os));
-            os << "\"}";
-            s = dump_test.dump(-1, ' ', true, nlohmann::json::error_handler_t::replace);
-            CHECK(s == os.str());
+            dump_test["1"] = std::string(length, -1);
+
+            std::string expected = "{\"1\":\"";
+            for (int i = 0; i < length; ++i)
+            {
+                expected += "\\ufffd";
+            }
+            expected += "\"}";
+
+            auto s = dump_test.dump(-1, ' ', true, nlohmann::json::error_handler_t::replace);
+            CHECK(s == expected);
         }
         SECTION("a bunch of -2, ensure_ascii=false")
         {
+            const auto length = 500;
+
             json dump_test;
-            std::vector<char> data(500, -2);
-            std::vector<std::string> vec_string(500, "\xEF\xBF\xBD");
-            std::string s{data.data(), data.size()};
-            dump_test["1"] = s;
-            std::ostringstream os;
-            os << "{\"1\":\"";
-            std::copy( vec_string.begin(), vec_string.end(), std::ostream_iterator<std::string>(os));
-            os << "\"}";
-            s = dump_test.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
-            CHECK(s == os.str());
+            dump_test["1"] = std::string(length, -2);
+
+            std::string expected = "{\"1\":\"";
+            for (int i = 0; i < length; ++i)
+            {
+                expected += "\xEF\xBF\xBD";
+            }
+            expected += "\"}";
+
+            auto s = dump_test.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+            CHECK(s == expected);
         }
         SECTION("test case in issue #1445")
         {
@@ -1819,6 +1835,12 @@ TEST_CASE("regression tests")
 
         CHECK(j.contains(jptr1));
         CHECK(j.contains(jptr2));
+    }
+    SECTION("issue #1805 - A pair<T1, T2> is json constructible only if T1 and T2 are json constructible")
+    {
+        static_assert(!std::is_constructible<json, std::pair<std::string, NotSerializableData>>::value, "");
+        static_assert(!std::is_constructible<json, std::pair<NotSerializableData, std::string>>::value, "");
+        static_assert(std::is_constructible<json, std::pair<int, std::string>>::value, "");
     }
 }
 
