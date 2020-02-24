@@ -1,7 +1,7 @@
 /*
     __ _____ _____ _____
  __|  |   __|     |   | |  JSON for Modern C++ (test suite)
-|  |  |__   |  |  | | | |  version 3.7.0
+|  |  |__   |  |  | | | |  version 3.7.3
 |_____|_____|_____|_|___|  https://github.com/nlohmann/json
 
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -158,6 +158,39 @@ bool operator==(Data const& lhs, Data const& rhs)
 /////////////////////////////////////////////////////////////////////
 
 using float_json = nlohmann::basic_json<std::map, std::vector, std::string, bool, std::int64_t, std::uint64_t, float>;
+
+/////////////////////////////////////////////////////////////////////
+// for #1647
+/////////////////////////////////////////////////////////////////////
+namespace
+{
+struct NonDefaultFromJsonStruct { };
+
+inline bool operator== (NonDefaultFromJsonStruct const&, NonDefaultFromJsonStruct const&)
+{
+    return true;
+}
+
+enum class for_1647 { one, two };
+
+NLOHMANN_JSON_SERIALIZE_ENUM(for_1647,
+{
+    {for_1647::one, "one"},
+    {for_1647::two, "two"},
+})
+}
+
+namespace nlohmann
+{
+template <>
+struct adl_serializer<NonDefaultFromJsonStruct>
+{
+    static NonDefaultFromJsonStruct from_json (json const&) noexcept
+    {
+        return {};
+    }
+};
+}
 
 /////////////////////////////////////////////////////////////////////
 // for #1805
@@ -1836,11 +1869,32 @@ TEST_CASE("regression tests")
         CHECK(j.contains(jptr1));
         CHECK(j.contains(jptr2));
     }
+
+    SECTION("issue #1647 - compile error when deserializing enum if both non-default from_json and non-member operator== exists for other type")
+    {
+        {
+            json j;
+            NonDefaultFromJsonStruct x = j;
+            NonDefaultFromJsonStruct y;
+            CHECK(x == y);
+        }
+
+        auto val = nlohmann::json("one").get<for_1647>();
+        CHECK(val == for_1647::one);
+        json j = val;
+    }
+
     SECTION("issue #1805 - A pair<T1, T2> is json constructible only if T1 and T2 are json constructible")
     {
         static_assert(!std::is_constructible<json, std::pair<std::string, NotSerializableData>>::value, "");
         static_assert(!std::is_constructible<json, std::pair<NotSerializableData, std::string>>::value, "");
         static_assert(std::is_constructible<json, std::pair<int, std::string>>::value, "");
+    }
+    SECTION("issue #1825 - A tuple<Args..> is json constructible only if all T in Args are json constructible")
+    {
+        static_assert(!std::is_constructible<json, std::tuple<std::string, NotSerializableData>>::value, "");
+        static_assert(!std::is_constructible<json, std::tuple<NotSerializableData, std::string>>::value, "");
+        static_assert(std::is_constructible<json, std::tuple<int, std::string>>::value, "");
     }
 }
 

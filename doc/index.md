@@ -80,8 +80,8 @@ Note that this table only lists those exceptions thrown due to the type. For ins
 
 <table>
   <tr>
-    <th rowspan="2">group</td>
-    <th rowspan="2">function</td>
+    <th rowspan="2">group</th>
+    <th rowspan="2">function</th>
     <th colspan="6">JSON value type</th>
   </tr>
   <tr>
@@ -329,4 +329,4 @@ Note that this table only lists those exceptions thrown due to the type. For ins
 @author [Niels Lohmann](http://nlohmann.me)
 @see https://github.com/nlohmann/json to download the source code
 
-@version 3.7.0
+@version 3.7.3
